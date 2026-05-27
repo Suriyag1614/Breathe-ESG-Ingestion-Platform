@@ -1,0 +1,767 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); background: var(--color-background-tertiary); }
+  .app { display: flex; height: 100vh; min-height: 700px; }
+  .sidebar { width: 200px; background: var(--color-background-primary); border-right: 0.5px solid var(--color-border-tertiary); padding: 16px 0; flex-shrink: 0; display: flex; flex-direction: column; }
+  .logo { padding: 4px 16px 20px; font-size: 13px; font-weight: 500; color: var(--color-text-primary); display: flex; align-items: center; gap: 8px; }
+  .logo-dot { width: 22px; height: 22px; border-radius: 6px; background: #1D9E75; display: flex; align-items: center; justify-content: center; }
+  .logo-dot i { color: #fff; font-size: 13px; }
+  .nav-section { padding: 0 8px; margin-bottom: 8px; }
+  .nav-label { font-size: 10px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 8px; margin-bottom: 4px; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--border-radius-md); cursor: pointer; font-size: 13px; color: var(--color-text-secondary); transition: background 0.15s; }
+  .nav-item:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+  .nav-item.active { background: #EAF3DE; color: #3B6D11; font-weight: 500; }
+  .nav-item.active i { color: #3B6D11; }
+  .nav-item i { font-size: 15px; width: 16px; }
+  .badge { margin-left: auto; background: var(--color-background-danger); color: var(--color-text-danger); font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 10px; }
+  .badge.green { background: #EAF3DE; color: #3B6D11; }
+  .main { flex: 1; overflow: auto; }
+  .topbar { background: var(--color-background-primary); border-bottom: 0.5px solid var(--color-border-tertiary); padding: 0 24px; height: 48px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .tenant-pill { font-size: 12px; color: var(--color-text-secondary); background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); padding: 3px 10px; border-radius: 20px; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: #E1F5EE; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: #0F6E56; cursor: pointer; }
+  .content { padding: 20px 24px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Dashboard */
+  .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px 16px; }
+  .metric-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .metric-label i { font-size: 13px; }
+  .metric-value { font-size: 26px; font-weight: 500; color: var(--color-text-primary); }
+  .metric-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 3px; }
+  .metric-value.danger { color: #A32D2D; }
+  .metric-value.warning { color: #854F0B; }
+  .metric-value.success { color: #3B6D11; }
+
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .section-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+  .btn { border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-size: 12px; padding: 5px 12px; border-radius: var(--border-radius-md); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  .btn:hover { background: var(--color-background-secondary); }
+  .btn.primary { background: #1D9E75; border-color: #1D9E75; color: #fff; }
+  .btn.primary:hover { background: #0F6E56; }
+  .btn.danger { background: var(--color-background-danger); border-color: var(--color-border-danger); color: var(--color-text-danger); }
+
+  .scope-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+  .scope-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px 16px; }
+  .scope-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .scope-label { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.06em; }
+  .scope-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: #EAF3DE; color: #3B6D11; font-weight: 500; }
+  .scope-badge.s2 { background: #E6F1FB; color: #185FA5; }
+  .scope-badge.s3 { background: #FAEEDA; color: #854F0B; }
+  .scope-co2 { font-size: 20px; font-weight: 500; margin-bottom: 2px; }
+  .scope-sub { font-size: 11px; color: var(--color-text-tertiary); }
+  .scope-bar-wrap { height: 4px; background: var(--color-background-secondary); border-radius: 2px; margin-top: 10px; }
+  .scope-bar { height: 4px; border-radius: 2px; }
+
+  /* Review Queue */
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; }
+  .search-input { border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-size: 12px; padding: 5px 10px; border-radius: var(--border-radius-md); width: 200px; }
+  .filter-select { border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-size: 12px; padding: 5px 10px; border-radius: var(--border-radius-md); }
+  .table-wrap { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: var(--color-background-secondary); padding: 8px 14px; text-align: left; font-size: 11px; font-weight: 500; color: var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); white-space: nowrap; }
+  td { padding: 9px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--color-background-secondary); cursor: pointer; }
+  .status-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .status-pending { background: #FAEEDA; color: #854F0B; }
+  .status-approved { background: #EAF3DE; color: #3B6D11; }
+  .status-rejected { background: #FCEBEB; color: #A32D2D; }
+  .status-review { background: #E6F1FB; color: #185FA5; }
+  .source-chip { background: var(--color-background-secondary); color: var(--color-text-secondary); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+  .issue-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .issue-dot.error { background: #E24B4A; }
+  .issue-dot.warning { background: #EF9F27; }
+  .severity-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 500; }
+  .sev-error { background: #FCEBEB; color: #A32D2D; }
+  .sev-warning { background: #FAEEDA; color: #854F0B; }
+  .sev-info { background: #E6F1FB; color: #185FA5; }
+
+  /* Row detail panel */
+  .detail-panel { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); margin-top: 14px; overflow: hidden; display: none; }
+  .detail-panel.open { display: block; }
+  .panel-header { padding: 12px 16px; background: var(--color-background-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; justify-content: space-between; }
+  .panel-title { font-size: 13px; font-weight: 500; }
+  .panel-actions { display: flex; gap: 6px; }
+  .panel-body { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .panel-section { }
+  .panel-section-title { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .field-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 12px; }
+  .field-row:last-child { border-bottom: none; }
+  .field-key { color: var(--color-text-secondary); }
+  .field-val { color: var(--color-text-primary); font-weight: 500; text-align: right; max-width: 60%; word-break: break-all; }
+  .issue-list { margin-top: 0; }
+  .issue-item { padding: 8px 10px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); margin-bottom: 6px; font-size: 11px; }
+  .issue-item.error { border-color: #F7C1C1; background: #FCEBEB; }
+  .issue-item.warning { border-color: #FAC775; background: #FAEEDA; }
+  .issue-item.info { background: #E6F1FB; border-color: #B5D4F4; }
+  .issue-code { font-weight: 500; margin-bottom: 2px; font-size: 10px; font-family: var(--font-mono); }
+  .issue-msg { color: var(--color-text-primary); line-height: 1.4; }
+
+  /* Audit */
+  .audit-timeline { position: relative; padding-left: 24px; }
+  .audit-timeline::before { content: ''; position: absolute; left: 7px; top: 8px; bottom: 8px; width: 1px; background: var(--color-border-tertiary); }
+  .audit-entry { position: relative; margin-bottom: 16px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 12px 14px; }
+  .audit-dot { position: absolute; left: -24px; top: 14px; width: 14px; height: 14px; border-radius: 50%; background: var(--color-background-primary); border: 1.5px solid var(--color-border-secondary); display: flex; align-items: center; justify-content: center; }
+  .audit-dot.approve { border-color: #3B6D11; background: #EAF3DE; }
+  .audit-dot.reject { border-color: #A32D2D; background: #FCEBEB; }
+  .audit-dot.edit { border-color: #185FA5; background: #E6F1FB; }
+  .audit-dot.upload { border-color: #854F0B; background: #FAEEDA; }
+  .audit-dot i { font-size: 8px; }
+  .audit-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .audit-event-type { font-size: 12px; font-weight: 500; }
+  .audit-time { font-size: 11px; color: var(--color-text-tertiary); }
+  .audit-actor { font-size: 11px; color: var(--color-text-secondary); display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+  .audit-detail { font-size: 11px; color: var(--color-text-secondary); font-family: var(--font-mono); background: var(--color-background-secondary); padding: 6px 8px; border-radius: 4px; line-height: 1.5; }
+
+  /* Ingestion */
+  .upload-zone { border: 1px dashed var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 32px; text-align: center; margin-bottom: 16px; background: var(--color-background-secondary); cursor: pointer; }
+  .upload-zone:hover { border-color: #1D9E75; background: #E1F5EE; }
+  .upload-icon { font-size: 28px; color: var(--color-text-tertiary); margin-bottom: 8px; }
+  .upload-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .upload-sub { font-size: 11px; color: var(--color-text-tertiary); }
+  .batch-list { }
+  .batch-item { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+  .batch-icon { width: 32px; height: 32px; border-radius: var(--border-radius-md); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .batch-icon.sap { background: #FAEEDA; color: #854F0B; }
+  .batch-icon.util { background: #E6F1FB; color: #185FA5; }
+  .batch-icon.travel { background: #EAF3DE; color: #3B6D11; }
+  .batch-info { flex: 1; min-width: 0; }
+  .batch-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .batch-meta { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+  .batch-stats { display: flex; gap: 12px; font-size: 11px; }
+  .batch-stat { display: flex; align-items: center; gap: 3px; }
+  .batch-stat.ok { color: #3B6D11; }
+  .batch-stat.err { color: #A32D2D; }
+  .progress-bar-wrap { width: 80px; height: 4px; background: var(--color-background-secondary); border-radius: 2px; }
+  .progress-bar { height: 4px; border-radius: 2px; background: #1D9E75; }
+
+  /* Chart area */
+  .chart-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 16px; margin-bottom: 16px; }
+</style>
+
+<div class="app">
+  <nav class="sidebar">
+    <div class="logo">
+      <div class="logo-dot"><i class="ti ti-leaf" aria-hidden="true"></i></div>
+      Breathe ESG
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" onclick="showPage('dashboard')">
+        <i class="ti ti-layout-dashboard" aria-hidden="true"></i> Dashboard
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Data</div>
+      <div class="nav-item" onclick="showPage('ingestion')">
+        <i class="ti ti-upload" aria-hidden="true"></i> Ingest Data
+      </div>
+      <div class="nav-item" onclick="showPage('queue')">
+        <i class="ti ti-checklist" aria-hidden="true"></i> Review Queue
+        <span class="badge">14</span>
+      </div>
+      <div class="nav-item" onclick="showPage('audit')">
+        <i class="ti ti-history" aria-hidden="true"></i> Audit Trail
+      </div>
+    </div>
+    <div class="nav-section" style="margin-top: auto;">
+      <div class="nav-label">Settings</div>
+      <div class="nav-item" onclick="sendPrompt('How do I configure a new SAP data source in Breathe ESG?')">
+        <i class="ti ti-settings" aria-hidden="true"></i> Sources ↗
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <span class="topbar-title" id="page-title">Dashboard</span>
+      <div class="topbar-right">
+        <span class="tenant-pill">Acme Corp — FY2024</span>
+        <div class="avatar">AJ</div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD PAGE -->
+    <div class="page active content" id="page-dashboard">
+      <h2 class="sr-only">ESG data ingestion dashboard for Acme Corp, FY2024</h2>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label"><i class="ti ti-database" aria-hidden="true"></i> Total records</div>
+          <div class="metric-value">1,842</div>
+          <div class="metric-sub">across 6 batches</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label"><i class="ti ti-clock" aria-hidden="true"></i> Pending review</div>
+          <div class="metric-value warning">214</div>
+          <div class="metric-sub">in analyst queue</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label"><i class="ti ti-alert-circle" aria-hidden="true"></i> Validation errors</div>
+          <div class="metric-value danger">14</div>
+          <div class="metric-sub">blocking approval</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label"><i class="ti ti-circle-check" aria-hidden="true"></i> Approved</div>
+          <div class="metric-value success">1,614</div>
+          <div class="metric-sub">87.6% of total</div>
+        </div>
+      </div>
+
+      <div class="scope-grid">
+        <div class="scope-card">
+          <div class="scope-header">
+            <span class="scope-label">Scope 1</span>
+            <span class="scope-badge">Direct</span>
+          </div>
+          <div class="scope-co2">2,841 t</div>
+          <div class="scope-sub">CO₂e · Jan–Mar 2024</div>
+          <div class="scope-bar-wrap"><div class="scope-bar" style="width:42%; background:#1D9E75;"></div></div>
+        </div>
+        <div class="scope-card">
+          <div class="scope-header">
+            <span class="scope-label">Scope 2</span>
+            <span class="scope-badge s2">Grid</span>
+          </div>
+          <div class="scope-co2">1,204 t</div>
+          <div class="scope-sub">CO₂e · location-based</div>
+          <div class="scope-bar-wrap"><div class="scope-bar" style="width:28%; background:#378ADD;"></div></div>
+        </div>
+        <div class="scope-card">
+          <div class="scope-header">
+            <span class="scope-label">Scope 3 Cat 6</span>
+            <span class="scope-badge s3">Travel</span>
+          </div>
+          <div class="scope-co2">389 t</div>
+          <div class="scope-sub">CO₂e · business travel</div>
+          <div class="scope-bar-wrap"><div class="scope-bar" style="width:18%; background:#EF9F27;"></div></div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="section-header">
+          <span class="section-title">Monthly CO₂e by scope (Jan–Mar 2024)</span>
+        </div>
+        <div style="display:flex; gap:16px; margin-bottom:10px; font-size:12px; color:var(--color-text-secondary);">
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#1D9E75;"></span>Scope 1</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:3px;border-top:3px dashed #378ADD;"></span>Scope 2</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#EF9F27;"></span>Scope 3</span>
+        </div>
+        <div style="position:relative; height:180px;">
+          <canvas id="scopeChart" role="img" aria-label="Bar chart showing monthly CO2e by scope, January through March 2024. Scope 1 ranges 900-1000t, Scope 2 380-420t, Scope 3 120-140t.">Monthly emissions data across three scopes for Q1 2024.</canvas>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <span class="section-title">Recent batches</span>
+        <button class="btn" onclick="showPage('ingestion')"><i class="ti ti-upload" aria-hidden="true"></i> Upload new</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Batch</th><th>Source type</th><th>Uploaded by</th><th>Date</th><th>Rows</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><span style="font-family:var(--font-mono);font-size:11px;">2024-031</span></td><td><span class="source-chip">SAP</span></td><td>a.jones@acme.com</td><td>Mar 18, 2024</td><td>164</td><td><span class="status-pill status-approved">Approved</span></td></tr>
+            <tr><td><span style="font-family:var(--font-mono);font-size:11px;">2024-030</span></td><td><span class="source-chip">UTILITY</span></td><td>m.chen@acme.com</td><td>Mar 15, 2024</td><td>38</td><td><span class="status-pill status-review">In Review</span></td></tr>
+            <tr><td><span style="font-family:var(--font-mono);font-size:11px;">2024-029</span></td><td><span class="source-chip">TRAVEL</span></td><td>a.jones@acme.com</td><td>Mar 12, 2024</td><td>89</td><td><span class="status-pill status-pending">Pending</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INGESTION PAGE -->
+    <div class="page content" id="page-ingestion">
+      <h2 class="sr-only">Data ingestion upload page</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div>
+          <div class="section-header" style="margin-bottom:10px;">
+            <span class="section-title">Upload source file</span>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12px;color:var(--color-text-secondary);display:block;margin-bottom:5px;">Data source</label>
+            <select class="filter-select" style="width:100%;">
+              <option>SAP Flat File — Germany Plants (Scope 1)</option>
+              <option>SAP Flat File — US Plants (Scope 1)</option>
+              <option>Utility CSV — Global Electricity (Scope 2)</option>
+              <option>Concur Travel Export (Scope 3)</option>
+            </select>
+          </div>
+          <div class="upload-zone" onclick="sendPrompt('What CSV column format does Breathe ESG expect for SAP fuel data ingestion?')">
+            <div class="upload-icon"><i class="ti ti-file-upload" aria-hidden="true"></i></div>
+            <div class="upload-title">Drop file here or click to browse</div>
+            <div class="upload-sub">CSV, TSV · Max 50 MB · SHA-256 deduplication enabled ↗</div>
+          </div>
+          <button class="btn primary" style="width:100%;justify-content:center;">
+            <i class="ti ti-player-play" aria-hidden="true"></i> Run ingestion pipeline
+          </button>
+        </div>
+        <div>
+          <div class="section-header" style="margin-bottom:10px;">
+            <span class="section-title">Pipeline validation</span>
+          </div>
+          <div style="background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:12px;font-size:12px;">
+            <div style="padding:6px 0;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;justify-content:space-between;">
+              <span style="color:var(--color-text-secondary);">File encoding detection</span>
+              <span style="color:#3B6D11;font-weight:500;"><i class="ti ti-circle-check" style="font-size:13px;"></i> UTF-8</span>
+            </div>
+            <div style="padding:6px 0;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;justify-content:space-between;">
+              <span style="color:var(--color-text-secondary);">Duplicate file check</span>
+              <span style="color:#3B6D11;font-weight:500;"><i class="ti ti-circle-check" style="font-size:13px;"></i> No match</span>
+            </div>
+            <div style="padding:6px 0;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;justify-content:space-between;">
+              <span style="color:var(--color-text-secondary);">Row parsing</span>
+              <span style="color:var(--color-text-tertiary);">—</span>
+            </div>
+            <div style="padding:6px 0;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;justify-content:space-between;">
+              <span style="color:var(--color-text-secondary);">Unit normalization</span>
+              <span style="color:var(--color-text-tertiary);">—</span>
+            </div>
+            <div style="padding:6px 0;display:flex;justify-content:space-between;">
+              <span style="color:var(--color-text-secondary);">Validation engine</span>
+              <span style="color:var(--color-text-tertiary);">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <span class="section-title">Recent batches</span>
+      </div>
+      <div class="batch-item">
+        <div class="batch-icon sap"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i></div>
+        <div class="batch-info">
+          <div class="batch-name">sap_fuel_q1_2024.csv</div>
+          <div class="batch-meta">SAP Flat File · Germany Plants · Uploaded Mar 18 by a.jones</div>
+        </div>
+        <div class="batch-stats">
+          <span class="batch-stat ok"><i class="ti ti-circle-check" style="font-size:12px;"></i> 162 valid</span>
+          <span class="batch-stat err"><i class="ti ti-alert-circle" style="font-size:12px;"></i> 2 errors</span>
+        </div>
+        <div style="margin-left:8px;">
+          <div class="progress-bar-wrap"><div class="progress-bar" style="width:99%;"></div></div>
+          <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:2px;">Completed</div>
+        </div>
+      </div>
+      <div class="batch-item">
+        <div class="batch-icon util"><i class="ti ti-bolt" aria-hidden="true"></i></div>
+        <div class="batch-info">
+          <div class="batch-name">utility_electricity_q1_2024.csv</div>
+          <div class="batch-meta">Utility CSV · Global · Uploaded Mar 15 by m.chen</div>
+        </div>
+        <div class="batch-stats">
+          <span class="batch-stat ok"><i class="ti ti-circle-check" style="font-size:12px;"></i> 16 valid</span>
+          <span class="batch-stat err"><i class="ti ti-alert-circle" style="font-size:12px;"></i> 3 warnings</span>
+        </div>
+        <div style="margin-left:8px;">
+          <div class="progress-bar-wrap"><div class="progress-bar" style="width:84%;"></div></div>
+          <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:2px;">Processing</div>
+        </div>
+      </div>
+      <div class="batch-item">
+        <div class="batch-icon travel"><i class="ti ti-plane" aria-hidden="true"></i></div>
+        <div class="batch-info">
+          <div class="batch-name">travel_concur_q1_2024.csv</div>
+          <div class="batch-meta">Concur Travel · Q1 2024 · Uploaded Mar 12 by a.jones</div>
+        </div>
+        <div class="batch-stats">
+          <span class="batch-stat ok"><i class="ti ti-circle-check" style="font-size:12px;"></i> 83 valid</span>
+          <span class="batch-stat err"><i class="ti ti-alert-circle" style="font-size:12px;"></i> 6 issues</span>
+        </div>
+        <div style="margin-left:8px;">
+          <div class="progress-bar-wrap"><div class="progress-bar" style="width:100%;"></div></div>
+          <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:2px;">Completed</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REVIEW QUEUE PAGE -->
+    <div class="page content" id="page-queue">
+      <h2 class="sr-only">Analyst review queue showing rows pending approval, rejection, or editing</h2>
+      <div class="filter-bar">
+        <input class="search-input" type="search" placeholder="Search facility, material, airport..." />
+        <select class="filter-select">
+          <option>All sources</option>
+          <option>SAP Fuel</option>
+          <option>Utility</option>
+          <option>Travel</option>
+        </select>
+        <select class="filter-select">
+          <option>All statuses</option>
+          <option>Needs Review</option>
+          <option>Pending</option>
+          <option>Approved</option>
+          <option>Rejected</option>
+        </select>
+        <select class="filter-select">
+          <option>All scopes</option>
+          <option>Scope 1</option>
+          <option>Scope 2</option>
+          <option>Scope 3</option>
+        </select>
+        <button class="btn" style="margin-left:auto;"><i class="ti ti-download" aria-hidden="true"></i> Export</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" /></th>
+              <th>Row</th>
+              <th>Source</th>
+              <th>Scope</th>
+              <th>Activity</th>
+              <th>Quantity</th>
+              <th>Period</th>
+              <th>Facility</th>
+              <th>Issues</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="queue-tbody">
+            <tr onclick="openDetail('sap-1')">
+              <td><input type="checkbox" onclick="event.stopPropagation()" /></td>
+              <td style="font-family:var(--font-mono);font-size:11px;">#0014</td>
+              <td><span class="source-chip">SAP</span></td>
+              <td>1</td>
+              <td>Fuel combustion</td>
+              <td>500 kg</td>
+              <td>Jan 2024</td>
+              <td>Plant 1000</td>
+              <td><span class="issue-dot warning"></span> 1 warn</td>
+              <td><span class="status-pill status-review">Needs review</span></td>
+              <td style="white-space:nowrap;">
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="event.stopPropagation();approveRow(this)">✓</button>
+                <button class="btn danger" style="padding:3px 8px;font-size:11px;" onclick="event.stopPropagation()">✕</button>
+              </td>
+            </tr>
+            <tr onclick="openDetail('util-1')">
+              <td><input type="checkbox" onclick="event.stopPropagation()" /></td>
+              <td style="font-family:var(--font-mono);font-size:11px;">#0008</td>
+              <td><span class="source-chip">UTILITY</span></td>
+              <td>2</td>
+              <td>Electricity</td>
+              <td>—</td>
+              <td>Jan 2024</td>
+              <td>MTR-US-002</td>
+              <td><span class="issue-dot error"></span> 1 error</td>
+              <td><span class="status-pill status-review">Needs review</span></td>
+              <td style="white-space:nowrap;">
+                <button class="btn" style="padding:3px 8px;font-size:11px;opacity:0.4;cursor:not-allowed;" disabled>✓</button>
+                <button class="btn danger" style="padding:3px 8px;font-size:11px;" onclick="event.stopPropagation()">✕</button>
+              </td>
+            </tr>
+            <tr onclick="openDetail('util-2')">
+              <td><input type="checkbox" onclick="event.stopPropagation()" /></td>
+              <td style="font-family:var(--font-mono);font-size:11px;">#0019</td>
+              <td><span class="source-chip">UTILITY</span></td>
+              <td>2</td>
+              <td>Electricity</td>
+              <td>−1,200 kWh</td>
+              <td>Jan 2024</td>
+              <td>MTR-US-004</td>
+              <td><span class="issue-dot error"></span> 1 error</td>
+              <td><span class="status-pill status-review">Needs review</span></td>
+              <td style="white-space:nowrap;">
+                <button class="btn" style="padding:3px 8px;font-size:11px;opacity:0.4;" disabled>✓</button>
+                <button class="btn danger" style="padding:3px 8px;font-size:11px;" onclick="event.stopPropagation()">✕</button>
+              </td>
+            </tr>
+            <tr onclick="openDetail('travel-1')">
+              <td><input type="checkbox" onclick="event.stopPropagation()" /></td>
+              <td style="font-family:var(--font-mono);font-size:11px;">#0021</td>
+              <td><span class="source-chip">TRAVEL</span></td>
+              <td>3</td>
+              <td>Flight</td>
+              <td>NYC → SYD</td>
+              <td>Feb 2024</td>
+              <td>EMP-9112</td>
+              <td><span class="issue-dot warning"></span> 1 warn</td>
+              <td><span class="status-pill status-review">Needs review</span></td>
+              <td style="white-space:nowrap;">
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="event.stopPropagation();approveRow(this)">✓</button>
+                <button class="btn danger" style="padding:3px 8px;font-size:11px;" onclick="event.stopPropagation()">✕</button>
+              </td>
+            </tr>
+            <tr onclick="openDetail('travel-2')">
+              <td><input type="checkbox" onclick="event.stopPropagation()" /></td>
+              <td style="font-family:var(--font-mono);font-size:11px;">#0019</td>
+              <td><span class="source-chip">TRAVEL</span></td>
+              <td>3</td>
+              <td>Flight</td>
+              <td>LHR → LHR</td>
+              <td>Feb 2024</td>
+              <td>EMP-8001</td>
+              <td><span class="issue-dot error"></span> 1 error</td>
+              <td><span class="status-pill status-review">Needs review</span></td>
+              <td style="white-space:nowrap;">
+                <button class="btn" style="padding:3px 8px;font-size:11px;opacity:0.4;" disabled>✓</button>
+                <button class="btn danger" style="padding:3px 8px;font-size:11px;" onclick="event.stopPropagation()">✕</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Detail panel -->
+      <div class="detail-panel" id="detail-panel">
+        <div class="panel-header">
+          <span class="panel-title" id="detail-title">Row detail</span>
+          <div class="panel-actions">
+            <button class="btn" onclick="sendPrompt('How should I resolve a TRVL_CITY_CODE_NOT_AIRPORT validation error in Breathe ESG?')"><i class="ti ti-help" aria-hidden="true"></i> Help ↗</button>
+            <button class="btn primary" id="panel-approve-btn"><i class="ti ti-check" aria-hidden="true"></i> Approve</button>
+            <button class="btn danger"><i class="ti ti-x" aria-hidden="true"></i> Reject</button>
+            <button class="btn" onclick="closeDetail()"><i class="ti ti-x" aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <div class="panel-body" id="detail-body"></div>
+      </div>
+    </div>
+
+    <!-- AUDIT PAGE -->
+    <div class="page content" id="page-audit">
+      <h2 class="sr-only">Audit trail showing all state changes to emission records</h2>
+      <div class="filter-bar" style="margin-bottom:16px;">
+        <select class="filter-select">
+          <option>All event types</option>
+          <option>Row approved</option>
+          <option>Row rejected</option>
+          <option>Row edited</option>
+          <option>Batch uploaded</option>
+        </select>
+        <select class="filter-select">
+          <option>All users</option>
+          <option>a.jones@acme.com</option>
+          <option>m.chen@acme.com</option>
+        </select>
+        <button class="btn" style="margin-left:auto;"><i class="ti ti-download" aria-hidden="true"></i> Export CSV</button>
+      </div>
+      <div class="audit-timeline">
+        <div class="audit-entry">
+          <div class="audit-dot approve"><i class="ti ti-check" style="color:#3B6D11;font-size:8px;"></i></div>
+          <div class="audit-meta">
+            <span class="audit-event-type" style="color:#3B6D11;">Row approved</span>
+            <span class="audit-time">Mar 18, 2024 · 14:22:07 UTC</span>
+          </div>
+          <div class="audit-actor"><i class="ti ti-user" style="font-size:12px;"></i> a.jones@acme.com · 203.0.113.42</div>
+          <div class="audit-detail">target: RawEmissionRow #0012 (batch 2024-031)
+before: {"status": "NEEDS_REVIEW"}
+after:  {"status": "APPROVED"}
+comment: "Unit confirmed as M3 with plant config. Quantity within expected range."</div>
+        </div>
+        <div class="audit-entry">
+          <div class="audit-dot edit"><i class="ti ti-edit" style="color:#185FA5;font-size:8px;"></i></div>
+          <div class="audit-meta">
+            <span class="audit-event-type" style="color:#185FA5;">Row edited</span>
+            <span class="audit-time">Mar 18, 2024 · 14:19:31 UTC</span>
+          </div>
+          <div class="audit-actor"><i class="ti ti-user" style="font-size:12px;"></i> a.jones@acme.com · 203.0.113.42</div>
+          <div class="audit-detail">target: NormalizedEmissionRow (raw #0012) v1 → v2
+before: {"quantity": 500.0, "unit": "KG", "facility_id": "1000"}
+after:  {"quantity": 500.0, "unit": "kg", "facility_id": "1000", "country_code": "DE"}
+comment: "Added country code from plant config mapping."</div>
+        </div>
+        <div class="audit-entry">
+          <div class="audit-dot reject"><i class="ti ti-x" style="color:#A32D2D;font-size:8px;"></i></div>
+          <div class="audit-meta">
+            <span class="audit-event-type" style="color:#A32D2D;">Row rejected</span>
+            <span class="audit-time">Mar 15, 2024 · 11:04:58 UTC</span>
+          </div>
+          <div class="audit-actor"><i class="ti ti-user" style="font-size:12px;"></i> m.chen@acme.com · 198.51.100.77</div>
+          <div class="audit-detail">target: RawEmissionRow #0019 (batch 2024-030)
+rule: UTIL_NEGATIVE_CONSUMPTION  severity: ERROR
+comment: "Credit adjustment confirmed by finance. Not an energy consumption record."</div>
+        </div>
+        <div class="audit-entry">
+          <div class="audit-dot upload"><i class="ti ti-upload" style="color:#854F0B;font-size:8px;"></i></div>
+          <div class="audit-meta">
+            <span class="audit-event-type" style="color:#854F0B;">Batch uploaded</span>
+            <span class="audit-time">Mar 15, 2024 · 09:12:40 UTC</span>
+          </div>
+          <div class="audit-actor"><i class="ti ti-user" style="font-size:12px;"></i> m.chen@acme.com · 198.51.100.77</div>
+          <div class="audit-detail">target: IngestionBatch 2024-030
+source: utility_electricity_q1_2024.csv  SHA-256: a3f8c2...
+rows_parsed: 19  rows_valid: 16  rows_failed: 3
+pipeline_version: 1.0.0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const pages = {
+  dashboard: 'Dashboard',
+  ingestion: 'Data Ingestion',
+  queue: 'Review Queue',
+  audit: 'Audit Trail'
+};
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.getElementById('page-title').textContent = pages[id];
+  event.currentTarget && event.currentTarget.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) {
+      n.classList.add('active');
+    }
+  });
+}
+
+const detailData = {
+  'sap-1': {
+    title: 'SAP Row #0014 — Plant 1000 / Material 999999',
+    canApprove: true,
+    fields: [
+      { key: 'WERKS (Plant)', val: '1000' },
+      { key: 'MATNR (Material)', val: '999999' },
+      { key: 'MAKTX (Description)', val: 'UNKNOWN MATERIAL - AUDIT' },
+      { key: 'MENGE (Quantity)', val: '500.000' },
+      { key: 'MEINS (Unit)', val: 'KG' },
+      { key: 'BUDAT (Posting date)', val: '20240118' },
+      { key: 'BWART (Movement type)', val: '261' },
+      { key: 'KOSTL (Cost center)', val: 'COST001' },
+    ],
+    issues: [
+      { cls: 'warning', code: 'SAP_UNMAPPED_MATERIAL', msg: "Material '999999' is not in the material-to-fuel-type mapping. Emission factor cannot be selected automatically." }
+    ]
+  },
+  'util-1': {
+    title: 'Utility Row #0008 — Meter MTR-US-002',
+    canApprove: false,
+    fields: [
+      { key: 'account_number', val: 'ACC-004-2024' },
+      { key: 'meter_id', val: 'MTR-US-002' },
+      { key: 'billing_period_start', val: '2024-01-05' },
+      { key: 'billing_period_end', val: '2024-02-04' },
+      { key: 'consumption_kwh', val: '89,400' },
+      { key: 'read_type', val: 'ESTIMATED' },
+      { key: 'supplier_name', val: 'Oncor Electric Delivery' },
+      { key: 'tariff_code', val: 'LGS-TOU' },
+    ],
+    issues: [
+      { cls: 'error', code: 'UTIL_ESTIMATED_READ', msg: 'This is an estimated meter read. Actual consumption may differ significantly. Review against subsequent actual read before approving.' }
+    ]
+  },
+  'util-2': {
+    title: 'Utility Row #0019 — Meter MTR-US-004',
+    canApprove: false,
+    fields: [
+      { key: 'account_number', val: 'ACC-008-2024' },
+      { key: 'meter_id', val: 'MTR-US-004' },
+      { key: 'billing_period_start', val: '2024-01-01' },
+      { key: 'billing_period_end', val: '2024-01-31' },
+      { key: 'consumption_kwh', val: '−1,200' },
+      { key: 'read_type', val: 'ACTUAL' },
+      { key: 'notes', val: 'Credit adjustment' },
+    ],
+    issues: [
+      { cls: 'error', code: 'UTIL_NEGATIVE_CONSUMPTION', msg: 'Negative electricity consumption −1,200 kWh. Negative values are not valid for utility data. This may be a credit adjustment that should be rejected, not approved.' }
+    ]
+  },
+  'travel-1': {
+    title: 'Travel Row #0021 — EMP-9112 · NYC→SYD',
+    canApprove: true,
+    fields: [
+      { key: 'employee_id', val: 'EMP-9112' },
+      { key: 'expense_type', val: 'AIRFARE' },
+      { key: 'origin_airport_iata', val: 'NYC (city code)' },
+      { key: 'destination_airport_iata', val: 'SYD' },
+      { key: 'departure_datetime', val: '2024-02-22T23:00:00' },
+      { key: 'flight_class', val: 'ECONOMY' },
+      { key: 'amount_usd', val: '$890.00' },
+      { key: 'distance_km (stated)', val: '16,248 km' },
+    ],
+    issues: [
+      { cls: 'warning', code: 'TRVL_CITY_CODE_NOT_AIRPORT', msg: "'NYC' is an IATA city code, not an airport code. For accurate distance calculation, use the specific airport code (JFK, LGA, or EWR). Analyst may approve with assumption of JFK." }
+    ]
+  },
+  'travel-2': {
+    title: 'Travel Row #0019 — EMP-8001 · LHR→LHR',
+    canApprove: false,
+    fields: [
+      { key: 'employee_id', val: 'EMP-8001' },
+      { key: 'expense_type', val: 'AIRFARE' },
+      { key: 'origin_airport_iata', val: 'LHR' },
+      { key: 'destination_airport_iata', val: 'LHR' },
+      { key: 'departure_datetime', val: '2024-02-20T09:00:00' },
+      { key: 'amount_usd', val: '$0.00' },
+      { key: 'distance_km', val: '0' },
+    ],
+    issues: [
+      { cls: 'error', code: 'TRVL_SAME_ORIGIN_DESTINATION', msg: "Origin and destination are both 'LHR'. A flight cannot depart and arrive at the same airport. This row must be corrected or rejected." }
+    ]
+  }
+};
+
+function openDetail(id) {
+  const d = detailData[id];
+  if (!d) return;
+  document.getElementById('detail-title').textContent = d.title;
+  const approveBtn = document.getElementById('panel-approve-btn');
+  approveBtn.disabled = !d.canApprove;
+  approveBtn.style.opacity = d.canApprove ? '1' : '0.4';
+
+  const sevLabel = { error: 'sev-error', warning: 'sev-warning', info: 'sev-info' };
+  const issueHtml = d.issues.map(i => `
+    <div class="issue-item ${i.cls}">
+      <div class="issue-code"><span class="severity-tag ${sevLabel[i.cls]}">${i.cls.toUpperCase()}</span> ${i.code}</div>
+      <div class="issue-msg">${i.msg}</div>
+    </div>`).join('');
+
+  document.getElementById('detail-body').innerHTML = `
+    <div class="panel-section">
+      <div class="panel-section-title">Source data (raw)</div>
+      ${d.fields.map(f => `<div class="field-row"><span class="field-key">${f.key}</span><span class="field-val">${f.val}</span></div>`).join('')}
+    </div>
+    <div class="panel-section">
+      <div class="panel-section-title">Validation issues (${d.issues.length})</div>
+      <div class="issue-list">${issueHtml}</div>
+      <div style="margin-top:10px;">
+        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:4px;">Analyst note (required for approval with warnings)</label>
+        <textarea style="width:100%;font-size:12px;padding:6px 8px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);resize:vertical;min-height:60px;" placeholder="Explain your decision..."></textarea>
+      </div>
+    </div>`;
+
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+function approveRow(btn) {
+  const row = btn.closest('tr');
+  const pill = row.querySelector('.status-pill');
+  pill.className = 'status-pill status-approved';
+  pill.textContent = 'Approved';
+  btn.disabled = true;
+  btn.style.opacity = '0.4';
+}
+
+new Chart(document.getElementById('scopeChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Jan 2024', 'Feb 2024', 'Mar 2024'],
+    datasets: [
+      { label: 'Scope 1', data: [960, 1020, 861], backgroundColor: '#1D9E75' },
+      { label: 'Scope 2', data: [420, 398, 386], backgroundColor: 'rgba(55,138,221,0.15)', borderColor: '#378ADD', borderWidth: 2, borderDash: [4,4], type: 'line', tension: 0.3 },
+      { label: 'Scope 3', data: [138, 122, 129], backgroundColor: '#EF9F27' }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      y: { grid: { color: 'rgba(128,128,128,0.1)' }, ticks: { font: { size: 11 }, callback: v => v + ' t' } }
+    }
+  }
+});
+</script>
