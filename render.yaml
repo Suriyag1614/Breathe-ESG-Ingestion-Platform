@@ -1,0 +1,82 @@
+# render.yaml — Breathe ESG deployment on Render
+# Deploy: connect GitHub repo → Render will detect this file automatically.
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+
+  # ── Django Web Service ───────────────────────────────────────────────────────
+  - type: web
+    name: breathe-esg-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter              # Upgrade to standard for production workloads
+    region: oregon
+    branch: main
+    healthCheckPath: /api/v1/health/
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: breathe-esg-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true    # Render generates a secure random value
+      - key: DEBUG
+        value: "false"
+      - key: ALLOWED_HOSTS
+        value: "breathe-esg-api.onrender.com"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://breathe-esg.onrender.com"
+      - key: GUNICORN_WORKERS
+        value: "4"
+      - key: PORT
+        value: "8000"
+    autoDeploy: true
+
+  # ── React Static Site ─────────────────────────────────────────────────────
+  - type: web
+    name: breathe-esg
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    pullRequestPreviewsEnabled: true
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+    routes:
+      # SPA fallback: all unmatched routes serve index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://breathe-esg-api.onrender.com/api/v1
+
+  # ── Database Migration Job ────────────────────────────────────────────────
+  - type: job
+    name: breathe-esg-migrate
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: ""               # Run on-demand (triggered after deploys)
+    startCommand: python manage.py migrate --noinput
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: breathe-esg-db
+          property: connectionString
+      - key: SECRET_KEY
+        fromService:
+          name: breathe-esg-api
+          type: web
+          envVarKey: SECRET_KEY
+
+databases:
+  - name: breathe-esg-db
+    plan: starter              # 1 GB storage, upgrade for production
+    region: oregon
+    databaseName: breathe_esg
+    user: breathe
