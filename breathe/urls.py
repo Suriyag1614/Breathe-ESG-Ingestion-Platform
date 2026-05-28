@@ -9,10 +9,16 @@ def health_check(request):
     """Render health check endpoint — must return 200 without auth."""
     return JsonResponse({"status": "ok"})
 
+def home(request):
+    return JsonResponse({
+        "message": "Breathe ESG API",
+        "status": "running"
+    })
 
 urlpatterns = [
+    path("", home),
     path("admin/", admin.site.urls),
-    path("api/v1/health/", health_check, name="health-check"),
+    path("api/v1/health/", health_check),
     path("api/v1/", include("api.urls")),
 ]
 

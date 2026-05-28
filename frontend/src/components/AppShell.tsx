@@ -2,14 +2,6 @@ import { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
-const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: "⊞" },
-  { to: "/ingest", label: "Ingest Data", icon: "↑" },
-  { to: "/queue", label: "Review Queue", icon: "✓" },
-  { to: "/audit", label: "Audit Trail", icon: "◷" },
-  { to: "/sources", label: "Data Sources", icon: "⚙" },
-];
-
 interface AppShellProps {
   children: ReactNode;
 }
@@ -17,6 +9,19 @@ interface AppShellProps {
 export default function AppShell({ children }: AppShellProps) {
   const { user, activeTenant, tenants, logout, setActiveTenant } = useAuth();
   const navigate = useNavigate();
+
+  // 1. DYNAMIC FALLBACK: If context isn't ready yet, pull the saved slug from localStorage
+  const savedSlug = localStorage.getItem("active_tenant");
+  const slug = activeTenant?.tenant?.slug || savedSlug || "";
+
+  // 2. Compute navigation links dynamically inside the component render lifecycle
+  const NAV_ITEMS = [
+    { to: `/tenant/${slug}/dashboard`, label: "Dashboard", icon: "⊞" },
+    { to: `/tenant/${slug}/ingest`, label: "Ingest Data", icon: "↑" },
+    { to: `/tenant/${slug}/queue`, label: "Review Queue", icon: "✓" },
+    { to: `/tenant/${slug}/audit`, label: "Audit Trail", icon: "◷" },
+    { to: `/tenant/${slug}/sources`, label: "Data Sources", icon: "⚙" },
+  ];
 
   const handleLogout = () => {
     logout();
@@ -59,20 +64,27 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
         )}
 
+        {/* 3. Render items ONLY if we have a valid slug to prevent broken link clicks */}
         <ul className="nav-list">
-          {NAV_ITEMS.map((item) => (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                className={({ isActive }) =>
-                  `nav-item${isActive ? " active" : ""}`
-                }
-              >
-                <span className="nav-icon">{item.icon}</span>
-                {item.label}
-              </NavLink>
-            </li>
-          ))}
+          {slug ? (
+            NAV_ITEMS.map((item) => (
+              <li key={item.to}>
+                <NavLink
+                  to={item.to}
+                  className={({ isActive }) =>
+                    `nav-item${isActive ? " active" : ""}`
+                  }
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              </li>
+            ))
+          ) : (
+            <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "12px" }}>
+              Loading workspace links...
+            </div>
+          )}
         </ul>
 
         <div className="sidebar-footer">

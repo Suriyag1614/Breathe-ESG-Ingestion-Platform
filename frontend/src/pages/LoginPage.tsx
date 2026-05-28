@@ -15,9 +15,19 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
-      await login(email, password);
-      navigate("/dashboard");
+      const activeTenantData = await login(email, password);
+      console.log("Target slug:", activeTenantData?.tenant?.slug);
+
+      if (activeTenantData?.tenant?.slug) {
+        const targetPath = `/tenant/${activeTenantData.tenant.slug}/dashboard`;
+        console.log("Navigating to:", targetPath);
+        navigate(targetPath);
+      } else {
+        console.log("No tenant found, falling back.");
+        navigate("/dashboard");
+      }
     } catch (err: any) {
       setError(err.body?.detail ?? "Invalid credentials.");
     } finally {

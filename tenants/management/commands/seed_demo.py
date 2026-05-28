@@ -6,15 +6,6 @@ Creates a complete demo environment with realistic data for Q1 2024.
 Usage:
     python manage.py seed_demo
     python manage.py seed_demo --reset   # Drop and recreate all demo data
-
-What this creates:
-  - 2 demo users (admin + analyst)
-  - 1 tenant (Acme Corp)
-  - 3 data sources (SAP, Utility, Travel)
-  - 3 ingestion batches with rows drawn from the sample CSV files
-  - Validation issues matching what the real validator would produce
-  - Audit events showing a realistic review workflow
-  - Emission factors for all fuel types in the sample data
 """
 
 import uuid
@@ -25,9 +16,6 @@ from django.db import transaction
 
 User = get_user_model()
 
-
-# ─── DEMO CREDENTIALS ────────────────────────────────────────────────────────
-# These are printed at the end of the seed run and documented in DEMO.md
 
 DEMO_USERS = [
     {
@@ -96,9 +84,7 @@ DEMO_SOURCES = [
     },
 ]
 
-# Emission factors — real-world values from DEFRA 2023 and GHG Protocol
 EMISSION_FACTORS = [
-    # Scope 1 — Fuel combustion (kg CO2e per unit)
     {
         "activity_type": "FUEL_COMBUSTION",
         "fuel_type": "natural_gas",
@@ -171,7 +157,6 @@ EMISSION_FACTORS = [
         "source": "DEFRA 2023 Conversion Factors",
         "valid_from": date(2023, 1, 1),
     },
-    # Scope 2 — Electricity grid emission factors (kg CO2e per kWh)
     {
         "activity_type": "ELECTRICITY",
         "fuel_type": "",
@@ -211,7 +196,6 @@ EMISSION_FACTORS = [
         "source": "DEFRA 2023 Conversion Factors",
         "valid_from": date(2023, 1, 1),
     },
-    # Scope 3 — Business travel (kg CO2e per passenger-km)
     {
         "activity_type": "FLIGHT",
         "fuel_type": "economy_long_haul",
@@ -219,7 +203,7 @@ EMISSION_FACTORS = [
         "co2_factor": "0.1460000000",
         "ch4_factor": "0.0000000000",
         "n2o_factor": "0.0000000000",
-        "co2e_factor": "0.1950000000",  # includes radiative forcing ×1.9 via GHG Protocol
+        "co2e_factor": "0.1950000000",
         "gwp_version": "AR5",
         "source": "DEFRA 2023 — Passenger vehicles, short haul flights",
         "valid_from": date(2023, 1, 1),
@@ -250,7 +234,6 @@ EMISSION_FACTORS = [
     },
 ]
 
-# Sample raw rows drawn from the actual CSV files in the project
 SAP_ROWS = [
     {
         "MANDT": "100", "WERKS": "1000", "MATNR": "500012",
@@ -276,7 +259,6 @@ SAP_ROWS = [
         "DMBTR": "97500.00", "EBELN": "4500004010", "EBELP": "00010",
         "LIFNR": "V0004001", "NAME1": "Kompania Weglowa SA",
     },
-    # This row has SAP_UNMAPPED_MATERIAL warning
     {
         "MANDT": "100", "WERKS": "1000", "MATNR": "999999",
         "MAKTX": "UNKNOWN MATERIAL - AUDIT", "MENGE": "500.000", "MEINS": "KG",
@@ -285,7 +267,6 @@ SAP_ROWS = [
         "DMBTR": "750.00", "EBELN": "4500001300", "EBELP": "00010",
         "LIFNR": "V0001234", "NAME1": "E.ON Energy Deutschland GmbH",
     },
-    # This row has SAP_MISSING_QUANTITY error
     {
         "MANDT": "100", "WERKS": "2000", "MATNR": "500015",
         "MAKTX": "No. 2 Fuel Oil", "MENGE": "", "MEINS": "L",
@@ -294,7 +275,6 @@ SAP_ROWS = [
         "DMBTR": "0.00", "EBELN": "4500002110", "EBELP": "00010",
         "LIFNR": "V0002002", "NAME1": "ExxonMobil Corporation",
     },
-    # Unknown plant — SAP_UNKNOWN_PLANT_CODE warning
     {
         "MANDT": "100", "WERKS": "5999", "MATNR": "500013",
         "MAKTX": "Diesel Fuel Grade B", "MENGE": "8000.000", "MEINS": "L",
@@ -332,7 +312,6 @@ UTILITY_ROWS = [
         "supplier_name": "Duquesne Light", "read_type": "ACTUAL",
         "notes": "Credit adjustment",
     },
-    # Overlapping period row
     {
         "account_number": "ACC-009-2024", "meter_id": "MTR-US-005",
         "service_address": "100 Main St, Denver CO 80203, US",
@@ -367,7 +346,6 @@ TRAVEL_ROWS = [
         "arrival_datetime": "2024-01-15T18:30:00",
         "flight_class": "BUSINESS", "distance_km": "10841", "notes": "",
     },
-    # Same origin/destination ERROR row
     {
         "report_id": "RPT-2024-00419", "employee_id": "EMP-8001",
         "cost_center": "CC-EXEC-GB", "expense_type": "AIRFARE",
@@ -380,7 +358,6 @@ TRAVEL_ROWS = [
         "flight_class": "ECONOMY", "distance_km": "0",
         "notes": "VALIDATION ERROR: Same origin/destination",
     },
-    # City code WARNING row
     {
         "report_id": "RPT-2024-00420", "employee_id": "EMP-9112",
         "cost_center": "CC-MKTG-US", "expense_type": "AIRFARE",
@@ -433,7 +410,6 @@ class Command(BaseCommand):
             self.stdout.write("  ✓ Demo users and emission factors deleted")
 
         with transaction.atomic():
-            # ── Create users ──────────────────────────────────────────────────
             users = {}
             for u in DEMO_USERS:
                 user, created = User.objects.get_or_create(
@@ -452,7 +428,6 @@ class Command(BaseCommand):
                     self.stdout.write(f"  ~ User already exists: {u['email']}")
                 users[u["role"]] = user
 
-            # ── Create tenant ─────────────────────────────────────────────────
             tenant, created = Tenant.objects.get_or_create(
                 slug=DEMO_TENANT["slug"],
                 defaults=DEMO_TENANT,
@@ -462,7 +437,6 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f"  ~ Tenant already exists: {tenant.name}")
 
-            # ── Memberships ───────────────────────────────────────────────────
             for u in DEMO_USERS:
                 TenantMembership.objects.get_or_create(
                     tenant=tenant,
@@ -470,7 +444,6 @@ class Command(BaseCommand):
                     defaults={"role": u["role"]},
                 )
 
-            # ── Emission factors ──────────────────────────────────────────────
             for ef_data in EMISSION_FACTORS:
                 EmissionFactor.objects.get_or_create(
                     activity_type=ef_data["activity_type"],
@@ -481,7 +454,6 @@ class Command(BaseCommand):
                 )
             self.stdout.write(f"  ✓ Seeded {len(EMISSION_FACTORS)} emission factors")
 
-            # ── Data sources ──────────────────────────────────────────────────
             sources = {}
             for s in DEMO_SOURCES:
                 ds, _ = DataSource.objects.get_or_create(
@@ -492,7 +464,6 @@ class Command(BaseCommand):
                 sources[s["source_type"]] = ds
             self.stdout.write(f"  ✓ Created {len(DEMO_SOURCES)} data sources")
 
-            # ── Helper: create batch + rows + issues ──────────────────────────
             pipeline = ValidationPipeline()
 
             def create_batch(source_type, filename, rows_data, uploaded_by):
@@ -539,7 +510,6 @@ class Command(BaseCommand):
                         failed += 1
                     raw_rows.append(raw_row)
 
-                # Batch-level validators
                 for bv in pipeline.BATCH_VALIDATORS.get(source_type, []):
                     for iss in bv(rows_data):
                         if iss.row_index < len(raw_rows):
@@ -567,9 +537,11 @@ class Command(BaseCommand):
             travel_batch, travel_rows = create_batch(
                 "TRAVEL_CONCUR", "travel_concur_q1_2024.csv", TRAVEL_ROWS, users["ANALYST"]
             )
-            self.stdout.write(f"  ✓ Created 3 ingestion batches ({len(sap_rows) + len(util_rows) + len(travel_rows)} rows total)")
+            self.stdout.write(
+                f"  ✓ Created 3 ingestion batches "
+                f"({len(sap_rows) + len(util_rows) + len(travel_rows)} rows total)"
+            )
 
-            # ── Approve some rows to show a realistic workflow ─────────────────
             approvable = [
                 r for r in (sap_rows + util_rows + travel_rows)
                 if r.status == "PENDING"
@@ -589,7 +561,6 @@ class Command(BaseCommand):
                     comment="Reviewed and confirmed. Values within expected range.",
                 )
 
-            # ── Add a batch upload audit event ────────────────────────────────
             for batch in (sap_batch, util_batch, travel_batch):
                 AuditEvent.objects.create(
                     tenant=tenant,

@@ -14,33 +14,38 @@ from tenants.models import Tenant, TenantMembership
 
 # ─── TENANT RESOLUTION ───────────────────────────────────────────────────────
 
+from rest_framework.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404
+
+from tenants.models import Tenant, TenantMembership
+
+
 class TenantFromSlugMixin:
     """
-    Resolves the active tenant from the URL kwarg `tenant_slug`.
-    Injects `request.tenant` and `request.membership` for downstream use.
+    Resolves tenant + membership BEFORE DRF permission checks run.
     """
 
     def initial(self, request, *args, **kwargs):
-        super().initial(request, *args, **kwargs)
         slug = kwargs.get("tenant_slug")
-        if not slug:
-            raise exceptions.NotFound("Tenant not specified.")
 
-        try:
-            tenant = Tenant.objects.get(slug=slug, is_active=True)
-        except Tenant.DoesNotExist:
-            raise exceptions.NotFound("Tenant not found or inactive.")
+        tenant = get_object_or_404(Tenant, slug=slug)
 
         if not request.user or not request.user.is_authenticated:
-            raise exceptions.NotAuthenticated()
+            raise PermissionDenied("Authentication required")
 
-        try:
-            membership = TenantMembership.objects.get(tenant=tenant, user=request.user)
-        except TenantMembership.DoesNotExist:
-            raise exceptions.PermissionDenied("You are not a member of this tenant.")
+        membership = TenantMembership.objects.filter(
+            tenant=tenant,
+            user=request.user,
+        ).first()
+
+        if not membership:
+            raise PermissionDenied("Not a tenant member")
 
         request.tenant = tenant
         request.membership = membership
+
+        # IMPORTANT: call AFTER attaching attributes
+        super().initial(request, *args, **kwargs)
 
 
 # ─── PERMISSION CLASSES ───────────────────────────────────────────────────────

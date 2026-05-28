@@ -39,11 +39,11 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "corsheaders",
     # Local apps — order matters for migrations
-    "tenants",
-    "ingestion",
-    "emissions",
-    "audit",
-    "api",
+    "tenants.apps.TenantsConfig",
+    "ingestion.apps.IngestionConfig",
+    "emissions.apps.EmissionsConfig",
+    "audit.apps.AuditConfig",
+    "api.apps.ApiConfig",
 ]
 
 # ─── MIDDLEWARE ───────────────────────────────────────────────────────────────

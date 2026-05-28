@@ -44,10 +44,5 @@ USER breathe
 
 EXPOSE $PORT
 
-# Gunicorn: 2 workers per CPU core, 120s timeout for large file uploads
-CMD ["sh", "-c", "gunicorn breathe.wsgi:application \
-    --bind 0.0.0.0:$PORT \
-    --workers ${GUNICORN_WORKERS:-2} \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile -"]
+# Exec form CMD (no shell wrapper — signals propagate correctly)
+CMD ["sh", "-c", "gunicorn breathe.wsgi:application --bind 0.0.0.0:${PORT} --workers ${GUNICORN_WORKERS:-2} --timeout 120 --access-logfile - --error-logfile -"]

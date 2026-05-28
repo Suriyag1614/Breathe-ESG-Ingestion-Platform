@@ -6,7 +6,7 @@ interface AuthState {
   activeTenant: { tenant: Tenant; role: string } | null;
   tenants: Array<{ tenant: Tenant; role: string }>;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ tenant: Tenant; role: string } | null>; // Explicit return type
   logout: () => void;
   setActiveTenant: (slug: string) => void;
 }
@@ -36,16 +36,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<{ tenant: Tenant; role: string } | null> => {
     const data = await authApi.login(email, password);
     tokenStore.set(data.access);
     tokenStore.setRefresh(data.refresh);
+
     const myTenants = await authApi.myTenants();
     setUser(data.user);
     setTenants(myTenants);
+
     const first = myTenants[0] ?? null;
     setActiveTenantState(first);
-    if (first) localStorage.setItem("active_tenant", first.tenant.slug);
+    if (first) {
+      localStorage.setItem("active_tenant", first.tenant.slug);
+    }
+
+    return first; // This must return the object
   };
 
   const logout = () => {
@@ -63,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // 3. This will now pass smoothly without red squigglies!
   return (
     <AuthContext.Provider value={{ user, activeTenant, tenants, isLoading, login, logout, setActiveTenant }}>
       {children}
