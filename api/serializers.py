@@ -1,8 +1,7 @@
 """
 Breathe ESG — API Serializers
 ==============================
-Serializers for all models. Organized by domain.
-Tenant context is injected via the request; no tenant field is writable by clients.
+All serializers. Imports from the split app structure.
 """
 
 from rest_framework import serializers
@@ -101,7 +100,6 @@ class DataSourceSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "created_by"]
 
     def validate_config(self, value):
-        # Basic structural validation per source_type
         source_type = self.initial_data.get("source_type") or (
             self.instance.source_type if self.instance else None
         )
@@ -167,7 +165,6 @@ class ResolveIssueSerializer(serializers.Serializer):
 # ─── RAW EMISSION ROW ─────────────────────────────────────────────────────────
 
 class RawEmissionRowListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for list views (no raw_data blob)."""
     batch_filename = serializers.CharField(source="batch.source_filename", read_only=True)
     issue_count = serializers.SerializerMethodField()
     has_errors = serializers.SerializerMethodField()
@@ -189,7 +186,6 @@ class RawEmissionRowListSerializer(serializers.ModelSerializer):
 
 
 class RawEmissionRowDetailSerializer(serializers.ModelSerializer):
-    """Full serializer with raw_data and nested issues."""
     validation_issues = ValidationIssueSerializer(many=True, read_only=True)
     normalized_current = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -202,7 +198,7 @@ class RawEmissionRowDetailSerializer(serializers.ModelSerializer):
             "validation_issues", "normalized_current",
             "is_deleted", "deleted_at",
         ]
-        read_only_fields = fields  # Raw rows are never written via API
+        read_only_fields = [f for f in RawEmissionRow._meta.get_fields()]
 
     def get_normalized_current(self, obj):
         current = obj.normalized_versions.filter(is_current=True).first()
@@ -212,7 +208,6 @@ class RawEmissionRowDetailSerializer(serializers.ModelSerializer):
 
 
 class RowActionSerializer(serializers.Serializer):
-    """Used for approve/reject actions."""
     comment = serializers.CharField(required=False, allow_blank=True)
 
 
@@ -242,8 +237,6 @@ class NormalizedEmissionRowSerializer(serializers.ModelSerializer):
 
 
 class NormalizedRowEditSerializer(serializers.ModelSerializer):
-    """Used when an analyst edits a normalized row — creates a new version."""
-
     class Meta:
         model = NormalizedEmissionRow
         fields = [
@@ -287,7 +280,11 @@ class EmissionCalculationSerializer(serializers.ModelSerializer):
             "co2e_kg", "co2_kg", "ch4_kg", "n2o_kg",
             "calculation_method", "calculated_at", "calculator_version",
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            "id", "normalized_row", "emission_factor",
+            "co2e_kg", "co2_kg", "ch4_kg", "n2o_kg",
+            "calculation_method", "calculated_at", "calculator_version",
+        ]
 
 
 # ─── AUDIT EVENT ──────────────────────────────────────────────────────────────
@@ -303,13 +300,16 @@ class AuditEventSerializer(serializers.ModelSerializer):
             "target_type", "target_id", "before_state", "after_state",
             "comment", "created_at", "batch_event_id",
         ]
-        read_only_fields = fields  # Audit log is never written via API
+        read_only_fields = [
+            "id", "event_type", "event_type_display", "actor", "actor_ip",
+            "target_type", "target_id", "before_state", "after_state",
+            "comment", "created_at", "batch_event_id",
+        ]
 
 
-# ─── DASHBOARD / AGGREGATION ──────────────────────────────────────────────────
+# ─── DASHBOARD ────────────────────────────────────────────────────────────────
 
 class DashboardSummarySerializer(serializers.Serializer):
-    """Read-only aggregated stats for the dashboard."""
     total_records = serializers.IntegerField()
     pending_review = serializers.IntegerField()
     validation_errors = serializers.IntegerField()
@@ -322,7 +322,6 @@ class DashboardSummarySerializer(serializers.Serializer):
 
 
 class FileUploadSerializer(serializers.Serializer):
-    """Used for the file upload endpoint."""
     file = serializers.FileField()
     data_source_id = serializers.UUIDField()
 

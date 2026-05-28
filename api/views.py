@@ -1,11 +1,11 @@
 """
 Breathe ESG — API Views
 ========================
-All views are tenant-scoped. The URL structure is:
+All views are tenant-scoped. URL structure:
   /api/v1/auth/...
   /api/v1/tenants/{tenant_slug}/...
 
-`TenantFromSlugMixin.initial()` resolves request.tenant + request.membership
+TenantFromSlugMixin.initial() resolves request.tenant + request.membership
 before any view logic runs.
 """
 
@@ -14,11 +14,11 @@ import io
 import uuid
 from datetime import datetime
 
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
-from rest_framework import generics, mixins, permissions, status, viewsets
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -28,14 +28,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from tenants.models import Tenant, TenantMembership
 from ingestion.models import (
     DataSource, IngestionBatch, RawEmissionRow,
-    NormalizedEmissionRow, ValidationIssue
+    NormalizedEmissionRow, ValidationIssue,
 )
 from audit.models import AuditEvent
 from emissions.models import EmissionFactor, EmissionCalculation
 
 from .auth import (
     TenantFromSlugMixin, IsTenantMember, IsTenantAnalyst,
-    IsTenantAdmin, IsAnalystOrReadOnly, get_tokens_for_user, sha256_of_file
+    IsTenantAdmin, IsAnalystOrReadOnly, get_tokens_for_user, sha256_of_file,
 )
 from .serializers import (
     UserSerializer, UserRegistrationSerializer,
@@ -97,7 +97,7 @@ class UserTenantsView(generics.ListAPIView):
 # ─── TENANT MANAGEMENT ────────────────────────────────────────────────────────
 
 class TenantCreateView(generics.CreateAPIView):
-    """POST /api/v1/tenants/ — create a new tenant (creates admin membership)"""
+    """POST /api/v1/tenants/ — create a new tenant"""
     serializer_class = TenantSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -105,7 +105,6 @@ class TenantCreateView(generics.CreateAPIView):
         import re
         name = serializer.validated_data["name"]
         slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-        # Ensure uniqueness
         base_slug = slug
         counter = 1
         while Tenant.objects.filter(slug=slug).exists():
@@ -167,7 +166,6 @@ class DashboardView(TenantFromSlugMixin, APIView):
             tenant=tenant, severity="ERROR", is_resolved=False
         ).count()
 
-        # CO2e by scope (from approved calculations)
         def scope_co2e(scope_num):
             result = EmissionCalculation.objects.filter(
                 tenant=tenant,
@@ -176,7 +174,7 @@ class DashboardView(TenantFromSlugMixin, APIView):
                 normalized_row__is_current=True,
             ).aggregate(total=Sum("co2e_kg"))
             kg = result["total"] or 0
-            return round(kg / 1000, 2)  # convert to tonnes
+            return round(float(kg) / 1000, 2)
 
         recent_batches = IngestionBatch.objects.filter(
             tenant=tenant
@@ -196,13 +194,9 @@ class DashboardView(TenantFromSlugMixin, APIView):
         return Response(data)
 
 
-# ─── DATA SOURCES ──────────────────────────────────────────────────────────────
+# ─── DATA SOURCES ─────────────────────────────────────────────────────────────
 
 class DataSourceViewSet(TenantFromSlugMixin, viewsets.ModelViewSet):
-    """
-    /api/v1/tenants/{tenant_slug}/sources/
-    Admins can configure; members can list.
-    """
     serializer_class = DataSourceSerializer
 
     def get_permissions(self):
@@ -219,13 +213,9 @@ class DataSourceViewSet(TenantFromSlugMixin, viewsets.ModelViewSet):
         serializer.save(tenant=self.request.tenant, created_by=self.request.user)
 
 
-# ─── INGESTION ────────────────────────────────────────────────────────────────
+# ─── INGESTION BATCHES ────────────────────────────────────────────────────────
 
 class IngestionBatchViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
-    """
-    /api/v1/tenants/{tenant_slug}/batches/
-    Batches are created via the upload endpoint, not directly.
-    """
     serializer_class = IngestionBatchSerializer
     permission_classes = [permissions.IsAuthenticated, IsTenantMember]
 
@@ -241,7 +231,6 @@ class IngestionBatchViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["post"])
     def supersede(self, request, **kwargs):
-        """Mark a batch as superseded (used when re-uploading a corrected file)."""
         if request.membership.role not in ("ANALYST", "ADMIN"):
             return Response({"detail": "Analysts or Admins only."}, status=403)
         batch = self.get_object()
@@ -256,10 +245,7 @@ class IngestionBatchViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
 
 
 class FileUploadView(TenantFromSlugMixin, APIView):
-    """
-    POST /api/v1/tenants/{tenant_slug}/upload/
-    Accepts a CSV/TSV file, runs the ingestion pipeline, returns batch summary.
-    """
+    """POST /api/v1/tenants/{tenant_slug}/upload/"""
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [permissions.IsAuthenticated, IsTenantAnalyst]
 
@@ -277,7 +263,6 @@ class FileUploadView(TenantFromSlugMixin, APIView):
 
         file_hash = sha256_of_file(uploaded_file)
 
-        # Deduplication check
         if IngestionBatch.objects.filter(
             tenant=request.tenant, source_file_hash=file_hash
         ).exists():
@@ -339,7 +324,7 @@ class FileUploadView(TenantFromSlugMixin, APIView):
                     failed += 1
                 raw_rows_created.append(raw_row)
 
-            # Batch-level validators (e.g., overlap check)
+            # Batch-level validators
             batch_issues = []
             for bv in pipeline.BATCH_VALIDATORS.get(data_source.source_type, []):
                 batch_issues.extend(bv(rows))
@@ -377,7 +362,6 @@ class FileUploadView(TenantFromSlugMixin, APIView):
 
 
 def _parse_csv(file_obj) -> tuple[list[dict], list[str]]:
-    """Decode and parse the uploaded file into a list of row dicts."""
     raw_bytes = file_obj.read()
     for encoding in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
         try:
@@ -388,26 +372,19 @@ def _parse_csv(file_obj) -> tuple[list[dict], list[str]]:
     else:
         return [], ["Could not decode file with any supported encoding."]
 
-    # Auto-detect delimiter
     sample = text[:4096]
     dialect = csv.Sniffer().sniff(sample, delimiters=",\t|;")
     reader = csv.DictReader(io.StringIO(text), dialect=dialect)
     rows = []
-    errors = []
-    for i, row in enumerate(reader):
-        # Strip whitespace from all keys and values
+    for row in reader:
         clean = {k.strip(): v.strip() if isinstance(v, str) else v for k, v in row.items() if k}
         rows.append(clean)
-    return rows, errors
+    return rows, []
 
 
 # ─── REVIEW QUEUE ─────────────────────────────────────────────────────────────
 
 class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
-    """
-    /api/v1/tenants/{tenant_slug}/rows/
-    The analyst review queue. Supports filtering and row-level actions.
-    """
     permission_classes = [permissions.IsAuthenticated, IsTenantMember]
 
     def get_serializer_class(self):
@@ -424,8 +401,6 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
             .prefetch_related("validation_issues")
             .order_by("-ingested_at")
         )
-
-        # Filtering
         params = self.request.query_params
         if source := params.get("source_type"):
             qs = qs.filter(source_type=source)
@@ -437,7 +412,6 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(batch_id=batch)
         if q := params.get("search"):
             qs = qs.filter(raw_data__icontains=q)
-
         return qs
 
     @action(detail=True, methods=["post"], permission_classes=[
@@ -452,15 +426,12 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
             )
         ser = RowActionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-
         before = {"status": row.status}
         row.status = RawEmissionRow.Status.APPROVED
         row.save()
-
         _write_audit(request, "ROW_APPROVED", row,
                      before=before, after={"status": "APPROVED"},
                      comment=ser.validated_data.get("comment", ""))
-
         return Response({"status": "approved"})
 
     @action(detail=True, methods=["post"], permission_classes=[
@@ -470,32 +441,26 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
         row = self.get_object()
         ser = RowActionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-
         before = {"status": row.status}
         row.status = RawEmissionRow.Status.REJECTED
         row.save()
-
         _write_audit(request, "ROW_REJECTED", row,
                      before=before, after={"status": "REJECTED"},
                      comment=ser.validated_data.get("comment", ""))
-
         return Response({"status": "rejected"})
 
     @action(detail=False, methods=["post"], permission_classes=[
         permissions.IsAuthenticated, IsTenantAnalyst
     ])
     def bulk_approve(self, request, **kwargs):
-        """Approve multiple rows by ID (WARNING-only rows only)."""
         row_ids = request.data.get("ids", [])
         if not row_ids or len(row_ids) > 500:
             return Response({"detail": "Provide 1–500 row IDs."}, status=400)
-
         rows = RawEmissionRow.objects.for_tenant(request.tenant).filter(
             id__in=row_ids, is_deleted=False
         )
         batch_event_id = uuid.uuid4()
         approved_count = 0
-
         with transaction.atomic():
             for row in rows:
                 if row.validation_issues.filter(severity="ERROR", is_resolved=False).exists():
@@ -507,17 +472,12 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
                              before=before, after={"status": "APPROVED"},
                              batch_event_id=batch_event_id)
                 approved_count += 1
-
         return Response({"approved": approved_count, "batch_event_id": str(batch_event_id)})
 
 
 # ─── NORMALIZED ROW EDITS ─────────────────────────────────────────────────────
 
 class NormalizedRowEditView(TenantFromSlugMixin, APIView):
-    """
-    POST /api/v1/tenants/{tenant_slug}/rows/{row_pk}/edit/
-    Create a new version of the normalized row. Old version is kept.
-    """
     permission_classes = [permissions.IsAuthenticated, IsTenantAnalyst]
 
     def post(self, request, tenant_slug, row_pk):
@@ -549,7 +509,6 @@ class NormalizedRowEditView(TenantFromSlugMixin, APIView):
                 created_by=request.user,
                 **ser.validated_data,
             )
-
             _write_audit(
                 request, "ROW_EDITED", raw_row,
                 before=before_state,
@@ -563,7 +522,6 @@ class NormalizedRowEditView(TenantFromSlugMixin, APIView):
 # ─── VALIDATION ISSUES ────────────────────────────────────────────────────────
 
 class ValidationIssueResolveView(TenantFromSlugMixin, APIView):
-    """POST /api/v1/tenants/{tenant_slug}/issues/{issue_pk}/resolve/"""
     permission_classes = [permissions.IsAuthenticated, IsTenantAnalyst]
 
     def post(self, request, tenant_slug, issue_pk):
@@ -572,26 +530,22 @@ class ValidationIssueResolveView(TenantFromSlugMixin, APIView):
         )
         ser = ResolveIssueSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-
         issue.is_resolved = True
         issue.resolved_by = request.user
         issue.resolved_at = timezone.now()
         issue.resolution_note = ser.validated_data["resolution_note"]
         issue.save()
-
         _write_audit(
             request, "ISSUE_RESOLVED", issue.raw_row,
             after={"resolved_issue": issue.rule_code,
                    "note": ser.validated_data["resolution_note"]},
         )
-
         return Response(ValidationIssueSerializer(issue).data)
 
 
 # ─── AUDIT TRAIL ──────────────────────────────────────────────────────────────
 
 class AuditEventListView(TenantFromSlugMixin, generics.ListAPIView):
-    """GET /api/v1/tenants/{tenant_slug}/audit/"""
     serializer_class = AuditEventSerializer
     permission_classes = [permissions.IsAuthenticated, IsTenantMember]
 
@@ -599,7 +553,6 @@ class AuditEventListView(TenantFromSlugMixin, generics.ListAPIView):
         qs = AuditEvent.objects.filter(
             tenant=self.request.tenant
         ).select_related("actor").order_by("-created_at")
-
         params = self.request.query_params
         if et := params.get("event_type"):
             qs = qs.filter(event_type=et)
@@ -609,14 +562,12 @@ class AuditEventListView(TenantFromSlugMixin, generics.ListAPIView):
             qs = qs.filter(target_type=tt)
         if tid := params.get("target_id"):
             qs = qs.filter(target_id=tid)
-
         return qs
 
 
-# ─── EMISSION FACTORS (READ-ONLY) ─────────────────────────────────────────────
+# ─── EMISSION FACTORS ─────────────────────────────────────────────────────────
 
 class EmissionFactorListView(generics.ListAPIView):
-    """GET /api/v1/emission-factors/"""
     serializer_class = EmissionFactorSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -636,7 +587,6 @@ class EmissionFactorListView(generics.ListAPIView):
 
 def _write_audit(request, event_type, target_obj, before=None, after=None,
                  comment="", batch_event_id=None):
-    """Write a single audit event record."""
     AuditEvent.objects.create(
         tenant=request.tenant,
         event_type=event_type,

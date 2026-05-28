@@ -8,12 +8,10 @@ def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
     if response is not None:
-        # Normalize to always have a `detail` key or `errors` key
         if isinstance(response.data, dict) and "detail" not in response.data:
             response.data = {"errors": response.data}
         return response
 
-    # Unhandled exceptions → 500
     return Response(
         {"detail": "An unexpected server error occurred."},
         status=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -6,9 +6,7 @@ Every authenticated request carries a resolved `request.tenant`.
 """
 
 import hashlib
-from django.utils.translation import gettext_lazy as _
-from rest_framework import permissions, authentication, exceptions
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework import permissions, exceptions
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from tenants.models import Tenant, TenantMembership
@@ -20,7 +18,6 @@ class TenantFromSlugMixin:
     """
     Resolves the active tenant from the URL kwarg `tenant_slug`.
     Injects `request.tenant` and `request.membership` for downstream use.
-    Must be mixed into views that use tenant-scoped URLs.
     """
 
     def initial(self, request, *args, **kwargs):
@@ -49,7 +46,6 @@ class TenantFromSlugMixin:
 # ─── PERMISSION CLASSES ───────────────────────────────────────────────────────
 
 class IsTenantMember(permissions.BasePermission):
-    """Allow any authenticated tenant member (any role)."""
     message = "You must be a member of this tenant."
 
     def has_permission(self, request, view):
@@ -62,7 +58,6 @@ class IsTenantMember(permissions.BasePermission):
 
 
 class IsTenantAnalyst(permissions.BasePermission):
-    """Allow ANALYST or ADMIN roles only."""
     message = "You must be an Analyst or Admin to perform this action."
 
     def has_permission(self, request, view):
@@ -72,7 +67,6 @@ class IsTenantAnalyst(permissions.BasePermission):
 
 
 class IsTenantAdmin(permissions.BasePermission):
-    """Allow ADMIN role only."""
     message = "You must be a Tenant Admin to perform this action."
 
     def has_permission(self, request, view):
@@ -82,10 +76,6 @@ class IsTenantAdmin(permissions.BasePermission):
 
 
 class IsAnalystOrReadOnly(permissions.BasePermission):
-    """
-    Analysts and Admins can write. Viewers get read-only access.
-    Safe methods (GET, HEAD, OPTIONS) are allowed for any member.
-    """
     def has_permission(self, request, view):
         if not hasattr(request, "membership"):
             return False
@@ -97,7 +87,6 @@ class IsAnalystOrReadOnly(permissions.BasePermission):
 # ─── TOKEN HELPERS ────────────────────────────────────────────────────────────
 
 def get_tokens_for_user(user):
-    """Generate JWT token pair for a user."""
     refresh = RefreshToken.for_user(user)
     return {
         "refresh": str(refresh),
@@ -113,7 +102,7 @@ def get_tokens_for_user(user):
 # ─── FILE HASH UTILITY ────────────────────────────────────────────────────────
 
 def sha256_of_file(file_obj) -> str:
-    """Compute SHA-256 of an uploaded file object without loading it fully into memory."""
+    """Compute SHA-256 of an uploaded file without loading it fully into memory."""
     h = hashlib.sha256()
     file_obj.seek(0)
     for chunk in iter(lambda: file_obj.read(8192), b""):
