@@ -62,7 +62,21 @@ class IsTenantMember(permissions.BasePermission):
         )
 
 
+# auth.py (Your Custom Permission Mixins)
+from rest_framework import permissions
+
 class IsTenantAnalyst(permissions.BasePermission):
+    """
+    Allows access to both Analysts and Admins since an Admin 
+    enjoys full operational superset rights over raw data rows.
+    """
+    def has_permission(self, request, view):
+        # Ensure context mixin has already resolved membership
+        if not hasattr(request, "membership") or not request.membership:
+            return False
+            
+        # 🌟 FIX: Check for both roles instead of just ANALYST
+        return request.membership.role in ("ANALYST", "ADMIN")
     message = "You must be an Analyst or Admin to perform this action."
 
     def has_permission(self, request, view):
