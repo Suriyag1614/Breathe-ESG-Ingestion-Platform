@@ -44,11 +44,5 @@ USER breathe
 
 EXPOSE $PORT
 
-# Copy the entrypoint script into the container
-COPY entrypoint.sh /entrypoint.sh
-
-# This line fixes the permission issue inside the Linux container for you!
-RUN chmod +x /entrypoint.sh
-
-# Use the script as the entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+# Use a built-in shell command sequence directly as the container entrypoint
+CMD ["sh", "-c", "python manage.py migrate && python manage.py seed_demo && gunicorn breathe.wsgi:application --bind 0.0.0.0:8000"]
