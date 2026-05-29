@@ -22,9 +22,23 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
 
-ALLOWED_HOSTS_ENV = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1")
+ALLOWED_HOSTS_ENV = os.environ.get("ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS_ENV.split(",") if h.strip()]
 
+# Bulletproof fallback for Render health checks and testing environments
+if not ALLOWED_HOSTS or ALLOWED_HOSTS == [""]:
+    ALLOWED_HOSTS = ["*"]
+else:
+    # Safely inject local and structural variants to prevent DisallowedHost blocks
+    ALLOWED_HOSTS.extend([
+        "breathe-esg-api-cy8t.onrender.com",
+        ".onrender.com",
+        "localhost",
+        "127.0.0.1"
+    ])
+    # Remove duplicates
+    ALLOWED_HOSTS = list(set(ALLOWED_HOSTS))
+    
 # ─── INSTALLED APPS ──────────────────────────────────────────────────────────
 
 INSTALLED_APPS = [
