@@ -3,14 +3,14 @@ import { tenantApi, type AuditEvent } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 
 const EVENT_STYLES: Record<string, { color: string; bg: string; symbol: string }> = {
-  ROW_APPROVED:    { color: "#22c55e", bg: "#022c2211", symbol: "✓" },
-  ROW_REJECTED:    { color: "#ef4444", bg: "#2c021111", symbol: "✕" },
-  ROW_EDITED:      { color: "#3b82f6", bg: "#021c2c11", symbol: "✎" },
-  BATCH_UPLOADED:  { color: "#f59e0b", bg: "#2c1b0011", symbol: "↑" },
-  BATCH_SUPERSEDED:{ color: "#64748b", bg: "#1e2a3a11", symbol: "⟳" },
-  ISSUE_RESOLVED:  { color: "#8b5cf6", bg: "#1e0c3a11", symbol: "◉" },
-  BULK_APPROVE:    { color: "#22c55e", bg: "#022c2211", symbol: "✓✓" },
-  BULK_REJECT:     { color: "#ef4444", bg: "#2c021111", symbol: "✕✕" },
+  ROW_APPROVED: { color: "#22c55e", bg: "#022c2211", symbol: "✓" },
+  ROW_REJECTED: { color: "#ef4444", bg: "#2c021111", symbol: "✕" },
+  ROW_EDITED: { color: "#3b82f6", bg: "#021c2c11", symbol: "✎" },
+  BATCH_UPLOADED: { color: "#f59e0b", bg: "#2c1b0011", symbol: "↑" },
+  BATCH_SUPERSEDED: { color: "#64748b", bg: "#1e2a3a11", symbol: "⟳" },
+  ISSUE_RESOLVED: { color: "#8b5cf6", bg: "#1e0c3a11", symbol: "◉" },
+  BULK_APPROVE: { color: "#22c55e", bg: "#022c2211", symbol: "✓✓" },
+  BULK_REJECT: { color: "#ef4444", bg: "#2c021111", symbol: "✕✕" },
 };
 
 const DEFAULT_STYLE = { color: "#94a3b8", bg: "#1e253011", symbol: "·" };
@@ -80,28 +80,32 @@ export default function AuditPage() {
                     {ev.actor_ip && <span style={{ color: "#475569", marginLeft: 8 }}>· {ev.actor_ip}</span>}
                   </div>
                   {ev.comment && <div className="audit-comment">"{ev.comment}"</div>}
-                  {isExpanded && (
-                    <div className="audit-diff">
-                      {ev.before_state && (
-                        <div>
-                          <div className="diff-label">Before</div>
-                          <pre className="diff-code">{JSON.stringify(ev.before_state, null, 2)}</pre>
-                        </div>
-                      )}
-                      {ev.after_state && (
-                        <div>
-                          <div className="diff-label">After</div>
-                          <pre className="diff-code">{JSON.stringify(ev.after_state, null, 2)}</pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
+                {ev.comment && <div className="audit-comment">"{String(ev.comment)}"</div>}
+                {isExpanded && (
+                  <div className="audit-diff">
+                    {/* 🌟 FIX: Check if ev.before_state exists explicitly to resolve 'unknown' condition checks */}
+                    {ev.before_state !== null && ev.before_state !== undefined && (
+                      <div>
+                        <div className="diff-label">Before</div>
+                        <pre className="diff-code">{JSON.stringify(ev.before_state, null, 2)}</pre>
+                      </div>
+                    )}
+                    {/* 🌟 FIX: Check if ev.after_state exists explicitly to resolve 'unknown' condition checks */}
+                    {ev.after_state !== null && ev.after_state !== undefined && (
+                      <div>
+                        <div className="diff-label">After</div>
+                        <pre className="diff-code">{JSON.stringify(ev.after_state, null, 2)}</pre>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 }
