@@ -8,7 +8,7 @@ services:
     name: breathe-esg-api
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     region: oregon
     branch: main
     healthCheckPath: /api/v1/health/
@@ -31,7 +31,7 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         value: "https://breathe-esg.onrender.com"
       - key: GUNICORN_WORKERS
-        value: "4"
+        value: "2"
       - key: PORT
         value: "8000"
     autoDeploy: true
@@ -61,7 +61,7 @@ services:
 
 databases:
   - name: breathe-esg-db
-    plan: starter
+    plan: free
     region: oregon
     databaseName: breathe_esg
     user: breathe
