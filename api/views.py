@@ -12,7 +12,7 @@ before any view logic runs.
 import csv
 import io
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -23,7 +23,6 @@ from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from tenants.models import Tenant, TenantMembership
 from ingestion.models import (
@@ -51,6 +50,168 @@ from .serializers import (
 )
 
 User = get_user_model()
+
+# ─── SOURCE TYPE → ACTIVITY TYPE MAPPING ─────────────────────────────────────
+
+SOURCE_TO_ACTIVITY = {
+    "SAP_FLAT_FILE": "FUEL_COMBUSTION",
+    "UTILITY_CSV": "ELECTRICITY",
+    "TRAVEL_CONCUR": "FLIGHT",
+}
+
+# SAP unit codes → ISO units (matches validation.py SAP_UNIT_MAP)
+SAP_UNIT_MAP = {
+    "KG": "kg",
+    "TO": "t",
+    "LB": "lb",
+    "L": "L",
+    "M3": "m3",
+    "KWH": "kWh",
+    "MJ": "MJ",
+    "GJ": "GJ",
+    "TH": "therms",
+}
+
+
+def _extract_normalized_fields(row: RawEmissionRow) -> dict:
+    """
+    Extract quantity, unit, period_start, period_end from raw_data
+    based on source_type. Returns a dict suitable for NormalizedEmissionRow creation.
+    """
+    raw = row.raw_data
+    source_type = row.source_type
+    today = date.today()
+
+    if source_type == "SAP_FLAT_FILE":
+        # Quantity: MENGE field
+        try:
+            quantity = float(str(raw.get("MENGE", "0")).replace(",", ".") or 0)
+        except (ValueError, TypeError):
+            quantity = 0.0
+
+        # Unit: map SAP MEINS to ISO
+        meins = str(raw.get("MEINS", "")).strip().upper()
+        unit = SAP_UNIT_MAP.get(meins, meins.lower() or "unit")
+
+        # Period: BUDAT is YYYYMMDD
+        budat = str(raw.get("BUDAT", "")).strip()
+        try:
+            period_start = datetime.strptime(budat, "%Y%m%d").date()
+            period_end = period_start  # point-in-time goods issue
+        except (ValueError, TypeError):
+            period_start = today
+            period_end = today
+
+        # Facility: plant code
+        facility_id = str(raw.get("WERKS", "")).strip()
+        supplier = str(raw.get("NAME1", "")).strip()
+
+    elif source_type == "UTILITY_CSV":
+        # Quantity: consumption_kwh
+        try:
+            quantity = float(str(raw.get("consumption_kwh", "0")) or 0)
+        except (ValueError, TypeError):
+            quantity = 0.0
+        unit = "kWh"
+
+        # Period: billing_period_start / billing_period_end
+        try:
+            period_start = date.fromisoformat(str(raw.get("billing_period_start", "")))
+        except (ValueError, TypeError):
+            period_start = today
+        try:
+            period_end = date.fromisoformat(str(raw.get("billing_period_end", "")))
+        except (ValueError, TypeError):
+            period_end = today
+
+        facility_id = str(raw.get("meter_id", "")).strip()
+        supplier = str(raw.get("supplier_name", "")).strip()
+
+    elif source_type == "TRAVEL_CONCUR":
+        # Quantity: distance_km
+        try:
+            quantity = float(str(raw.get("distance_km", "0")) or 0)
+        except (ValueError, TypeError):
+            quantity = 0.0
+        unit = "km"
+
+        # Period: departure_datetime date
+        dep = str(raw.get("departure_datetime", "")).strip()
+        arr = str(raw.get("arrival_datetime", "")).strip()
+        try:
+            period_start = datetime.fromisoformat(dep).date()
+        except (ValueError, TypeError):
+            period_start = today
+        try:
+            period_end = datetime.fromisoformat(arr).date()
+            if period_end < period_start:
+                period_end = period_start
+        except (ValueError, TypeError):
+            period_end = period_start
+
+        facility_id = str(raw.get("cost_center", "")).strip()
+        supplier = str(raw.get("vendor_name", "")).strip()
+
+    else:
+        quantity = 0.0
+        unit = "unit"
+        period_start = today
+        period_end = today
+        facility_id = ""
+        supplier = ""
+
+    return {
+        "activity_type": SOURCE_TO_ACTIVITY.get(source_type, "OTHER"),
+        "quantity": quantity,
+        "unit": unit,
+        "period_start": period_start,
+        "period_end": period_end,
+        "facility_id": facility_id,
+        "supplier": supplier,
+    }
+
+
+def _find_or_create_emission_factor(activity_type: str, unit: str, scope: int) -> EmissionFactor:
+    """
+    Look up the best matching EmissionFactor. Falls back to a safe default
+    rather than crashing the approve transaction.
+    """
+    # Try exact match first
+    factor = EmissionFactor.objects.filter(
+        activity_type=activity_type,
+        unit=unit,
+    ).filter(
+        Q(valid_to__isnull=True) | Q(valid_to__gte=date.today())
+    ).first()
+
+    if factor:
+        return factor
+
+    # Try activity_type only (any unit)
+    factor = EmissionFactor.objects.filter(
+        activity_type=activity_type,
+    ).filter(
+        Q(valid_to__isnull=True) | Q(valid_to__gte=date.today())
+    ).first()
+
+    if factor:
+        return factor
+
+    # Create a generic fallback factor — sensible defaults per scope
+    fallback_rates = {1: 2.68, 2: 0.385, 3: 0.195}
+    co2e = fallback_rates.get(scope, 2.68)
+
+    factor = EmissionFactor.objects.create(
+        activity_type=activity_type,
+        fuel_type="",
+        country_code="",
+        unit=unit,
+        co2_factor=co2e,
+        co2e_factor=co2e,
+        source="System default fallback",
+        valid_from=date(2023, 1, 1),
+    )
+    return factor
 
 
 # ─── AUTH VIEWS ───────────────────────────────────────────────────────────────
@@ -419,54 +580,55 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
     ])
     def approve(self, request, **kwargs):
         row = self.get_object()
+
+        # Block if unresolved ERRORs exist
         if row.validation_issues.filter(severity="ERROR", is_resolved=False).exists():
             return Response(
                 {"detail": "Cannot approve a row with unresolved ERROR-level issues."},
                 status=400,
             )
+
         ser = RowActionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         before = {"status": row.status}
-        
+
         with transaction.atomic():
             row.status = RawEmissionRow.Status.APPROVED
             row.save()
-            
-            # 🌟 NEW FIX: Dynamically build or grab the NormalizedEmissionRow
-            normalized_row, created = NormalizedEmissionRow.objects.get_or_create(
-                tenant=request.tenant,
-                raw_row=row,
-                is_current=True,
-                defaults={
-                    "version": 1,
-                    "created_by": request.user,
-                    "activity_type": row.source_type,
-                    "quantity": float(row.raw_data.get("quantity") or row.raw_data.get("Quantity") or 0.0),
-                    "unit": row.raw_data.get("unit") or row.raw_data.get("Unit") or "LITERS"
-                }
-            )
 
-            # 🌟 NEW FIX: Look up a versioned EmissionFactor matching the raw unit
-            # Fallback to a safe enterprise baseline factor if your factor seed table isn't populated yet
-            factor = EmissionFactor.objects.filter(
-                activity_type=row.source_type,
-                unit=normalized_row.unit
-            ).first()
-            
-            if not factor:
-                # Use standard emission factor figures (EPA / GHG Protocol standard rates)
-                fallback_rate = 2.68 if row.scope == 1 else (0.385 if row.scope == 2 else 0.133)
-                factor = EmissionFactor.objects.create(
-                    activity_type=row.source_type,
-                    unit=normalized_row.unit,
-                    co2e_factor=fallback_rate,
-                    source="System Framework Default Fallback",
-                    valid_from="2026-01-01"
+            # Extract properly typed fields from raw_data
+            fields = _extract_normalized_fields(row)
+
+            # Create or get NormalizedEmissionRow
+            existing = row.normalized_versions.filter(is_current=True).first()
+            if existing:
+                normalized_row = existing
+            else:
+                normalized_row = NormalizedEmissionRow.objects.create(
+                    tenant=request.tenant,
+                    raw_row=row,
+                    version=1,
+                    is_current=True,
+                    created_by=request.user,
+                    activity_type=fields["activity_type"],
+                    quantity=fields["quantity"],
+                    unit=fields["unit"],
+                    quantity_original=fields["quantity"],
+                    unit_original=fields["unit"],
+                    period_start=fields["period_start"],
+                    period_end=fields["period_end"],
+                    facility_id=fields["facility_id"],
+                    supplier=fields["supplier"],
                 )
 
-            # 🌟 NEW FIX: Compute emissions in kg and record it in EmissionCalculation!
+            # Find best matching EmissionFactor
+            factor = _find_or_create_emission_factor(
+                fields["activity_type"], fields["unit"], row.scope
+            )
+
+            # Compute and record emission
             computed_kg = float(normalized_row.quantity) * float(factor.co2e_factor)
-            
+
             EmissionCalculation.objects.update_or_create(
                 tenant=request.tenant,
                 normalized_row=normalized_row,
@@ -474,14 +636,17 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
                     "emission_factor": factor,
                     "co2e_kg": computed_kg,
                     "calculation_method": "ACTIVITY_BASED",
-                    "calculator_version": "1.0.0"
-                }
+                    "calculator_version": "1.0.0",
+                },
             )
 
-            _write_audit(request, "ROW_APPROVED", row,
-                         before=before, after={"status": "APPROVED"},
-                         comment=ser.validated_data.get("comment", ""))
-                         
+            _write_audit(
+                request, "ROW_APPROVED", row,
+                before=before,
+                after={"status": "APPROVED"},
+                comment=ser.validated_data.get("comment", ""),
+            )
+
         return Response({"status": "approved"})
 
     @action(detail=True, methods=["post"], permission_classes=[
@@ -494,9 +659,11 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
         before = {"status": row.status}
         row.status = RawEmissionRow.Status.REJECTED
         row.save()
-        _write_audit(request, "ROW_REJECTED", row,
-                     before=before, after={"status": "REJECTED"},
-                     comment=ser.validated_data.get("comment", ""))
+        _write_audit(
+            request, "ROW_REJECTED", row,
+            before=before, after={"status": "REJECTED"},
+            comment=ser.validated_data.get("comment", ""),
+        )
         return Response({"status": "rejected"})
 
     @action(detail=False, methods=["post"], permission_classes=[
@@ -506,53 +673,68 @@ class ReviewQueueViewSet(TenantFromSlugMixin, viewsets.ReadOnlyModelViewSet):
         row_ids = request.data.get("ids", [])
         if not row_ids or len(row_ids) > 500:
             return Response({"detail": "Provide 1–500 row IDs."}, status=400)
+
         rows = RawEmissionRow.objects.for_tenant(request.tenant).filter(
             id__in=row_ids, is_deleted=False
         )
         batch_event_id = uuid.uuid4()
         approved_count = 0
-        
+
         with transaction.atomic():
             for row in rows:
                 if row.validation_issues.filter(severity="ERROR", is_resolved=False).exists():
                     continue
+
                 before = {"status": row.status}
                 row.status = RawEmissionRow.Status.APPROVED
                 row.save()
-                
-                # 🌟 RUN MATH FOR BULK SELECTIONS
-                normalized_row, _ = NormalizedEmissionRow.objects.get_or_create(
-                    tenant=request.tenant,
-                    raw_row=row,
-                    is_current=True,
-                    defaults={
-                        "version": 1,
-                        "created_by": request.user,
-                        "activity_type": row.source_type,
-                        "quantity": float(row.raw_data.get("quantity") or row.raw_data.get("Quantity") or 0.0),
-                        "unit": row.raw_data.get("unit") or row.raw_data.get("Unit") or "LITERS"
-                    }
+
+                fields = _extract_normalized_fields(row)
+
+                existing = row.normalized_versions.filter(is_current=True).first()
+                if not existing:
+                    normalized_row = NormalizedEmissionRow.objects.create(
+                        tenant=request.tenant,
+                        raw_row=row,
+                        version=1,
+                        is_current=True,
+                        created_by=request.user,
+                        activity_type=fields["activity_type"],
+                        quantity=fields["quantity"],
+                        unit=fields["unit"],
+                        quantity_original=fields["quantity"],
+                        unit_original=fields["unit"],
+                        period_start=fields["period_start"],
+                        period_end=fields["period_end"],
+                        facility_id=fields["facility_id"],
+                        supplier=fields["supplier"],
+                    )
+                else:
+                    normalized_row = existing
+
+                factor = _find_or_create_emission_factor(
+                    fields["activity_type"], fields["unit"], row.scope
                 )
-                
-                fallback_rate = 2.68 if row.scope == 1 else (0.385 if row.scope == 2 else 0.133)
-                factor, _ = EmissionFactor.objects.get_or_create(
-                    activity_type=row.source_type,
-                    unit=normalized_row.unit,
-                    defaults={"co2e_factor": fallback_rate, "source": "System Framework Default Fallback", "valid_from": "2026-01-01"}
-                )
-                
                 computed_kg = float(normalized_row.quantity) * float(factor.co2e_factor)
+
                 EmissionCalculation.objects.update_or_create(
                     tenant=request.tenant,
                     normalized_row=normalized_row,
-                    defaults={"emission_factor": factor, "co2e_kg": computed_kg}
+                    defaults={
+                        "emission_factor": factor,
+                        "co2e_kg": computed_kg,
+                        "calculation_method": "ACTIVITY_BASED",
+                        "calculator_version": "1.0.0",
+                    },
                 )
 
-                _write_audit(request, "BULK_APPROVE", row,
-                             before=before, after={"status": "APPROVED"},
-                             batch_event_id=batch_event_id)
+                _write_audit(
+                    request, "BULK_APPROVE", row,
+                    before=before, after={"status": "APPROVED"},
+                    batch_event_id=batch_event_id,
+                )
                 approved_count += 1
-                
+
         return Response({"approved": approved_count, "batch_event_id": str(batch_event_id)})
 
 
