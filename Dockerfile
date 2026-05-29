@@ -45,4 +45,4 @@ USER breathe
 EXPOSE $PORT
 
 # Use a built-in shell command sequence directly as the container entrypoint
-CMD ["sh", "-c", "python manage.py migrate && gunicorn breathe.wsgi:application --bind 0.0.0.0:8000"]
+CMD ["sh", "-c", "python manage.py migrate && python manage.py seed_demo && gunicorn breathe.wsgi:application --bind 0.0.0.0:8000"]
