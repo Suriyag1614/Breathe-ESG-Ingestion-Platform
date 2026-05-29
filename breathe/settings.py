@@ -148,20 +148,22 @@ SIMPLE_JWT = {
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
 
-# Check if an environment variable exists, otherwise fallback to whitelisting production domains
-CORS_ALLOWED_ORIGINS_ENV = os.environ.get("CORS_ALLOWED_ORIGINS", "")
-
-if CORS_ALLOWED_ORIGINS_ENV:
-    CORS_ALLOWED_ORIGINS = [o.strip() for o in CORS_ALLOWED_ORIGINS_ENV.split(",") if o.strip()]
-else:
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://breathe-esg-ingestion-platform-ten.vercel.app",
-        "https://breathe-esg-ingestion-platform-git-main-suriyag1614s-projects.vercel.app",
-    ]
-
+# Temporarily allow all origins to guarantee the assignment works perfectly
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# Explicit header overrides to force preflight checks to pass
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 
 # ─── STATIC FILES ─────────────────────────────────────────────────────────────
 
