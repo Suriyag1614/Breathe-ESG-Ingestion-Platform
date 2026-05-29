@@ -44,5 +44,11 @@ USER breathe
 
 EXPOSE $PORT
 
-# Exec form CMD (no shell wrapper — signals propagate correctly)
-CMD ["sh", "-c", "gunicorn breathe.wsgi:application --bind 0.0.0.0:${PORT} --workers ${GUNICORN_WORKERS:-2} --timeout 120 --access-logfile - --error-logfile -"]
+# Copy the entrypoint script into the container
+COPY entrypoint.sh /entrypoint.sh
+
+# This line fixes the permission issue inside the Linux container for you!
+RUN chmod +x /entrypoint.sh
+
+# Use the script as the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
